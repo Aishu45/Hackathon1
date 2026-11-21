@@ -1,4 +1,9 @@
-# Fraud Investigation Agent
+# TakeoverGuard
+
+Account-takeover test lab in `ato/` (26 attacks mapped to MITRE, OWASP and ISO
+27001; simulate, detect, score, fix). It builds on the payment fraud
+investigator below, which covers the cash-out stage.
+
 
 Python project (compliance-fraud-agent). Claude (Anthropic SDK, Messages API,
 manual tool loop in `agents/fraud_agent.py`; `core/llm.py` also reaches Claude
@@ -25,7 +30,7 @@ Rules for this repository:
 This project sends traces to PRISM. Env vars: `PRISMTRACE_API_KEY`,
 `PRISMTRACE_PROJECT_ID`, `PRISMTRACE_HOST`.
 
-Tracing is currently wired at: core/tracing.py, core/llm.py (both providers, via the fraud agent's loop), agents/fraud_agent.py, agents/compliance_agent.py and agents/risk_agent.py (both traced as steps of the fraud agent's run), ato/explain.py (Claude explainer), ato/runner.py results via core/tracing.log_ato_run, planning/strategy_model.py results via core/tracing.log_strategy_run, scripts/evaluate.py, scripts/run_ato_tests.py, scripts/strategy_report.py, dashboard/app.py, dashboard/pages/1_ATO_test_lab.py, dashboard/pages/2_Strategy_model.py
+Tracing is currently wired at: core/tracing.py, core/llm.py (both providers, via the fraud agent's loop), agents/fraud_agent.py, agents/compliance_agent.py and agents/risk_agent.py (both traced as steps of the fraud agent's run), ato/explain.py (Claude explainer), ato/runner.py results via core/tracing.log_ato_run, planning/strategy_model.py results via core/tracing.log_strategy_run, scripts/evaluate.py, scripts/run_ato_tests.py, scripts/strategy_report.py, dashboard/app.py (router), dashboard/views/ato_test_lab.py, dashboard/views/payment_investigator.py, dashboard/views/strategy_model.py
 
 **Standing rule.** Whenever you add or change an agent, chain, graph, tool,
 retriever, or any entry point that calls a model, wire it to PRISM before you

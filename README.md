@@ -9,8 +9,18 @@ scores each one (risk score, criticality and business impact in money),
 recommends the fix, and re-tests to prove the fix works. Every step is traced
 in PRISM.
 
-It builds on a fraud investigation agent: Claude investigates each flagged
-payment, decides **approve**, **hold** or **escalate**, and explains why.
+## Quick start
+
+```bash
+pip install -r requirements.txt
+streamlit run dashboard/app.py                      # opens on the ATO Test Lab
+python scripts/run_ato_tests.py                     # all 26 tests, before and after all fixes
+python scripts/run_ato_tests.py --fixes ATO-06,ATO-09 --prism --explain ATO-09
+python scripts/security_check.py                    # security controls of the product itself
+python -m pytest -q                                 # offline tests, no keys needed
+```
+
+Keys are only needed for the AI explainer and for PRISM; see [Keys](#keys).
 
 ## Account Takeover Test Lab
 
@@ -49,92 +59,25 @@ such as the RBA (Risk-Based Authentication) dataset, so real login logs can
 replace it; PaySim covers payments. The labels are used only to grade the
 detectors, never by them.
 
-```bash
-python scripts/run_ato_tests.py                     # before and after all fixes
-python scripts/run_ato_tests.py --fixes ATO-06,ATO-09 --prism --explain ATO-09
-streamlit run dashboard/app.py                      # then open "ATO test lab"
-```
+## Coverage of the account-takeover kill chain
 
-## Strategy model (ROI)
-
-The "Strategy model" page compares three ways of handling fraud alerts
-(manual review, a score threshold, AI-assisted) on monthly cost, analysts
-needed, fraud caught and customers held, across editable scenarios in
-`config/scenarios/`. Every input says whether it is measured or assumed,
-guardrails flag missing or inconsistent inputs, and every number shows its
-formula. Run `python scripts/strategy_report.py`.
-
-## Layout
-
-```
-ato/           catalog.py (26 test cases), world.py (simulator), detection.py, ml.py,
-               scoring.py, runner.py, explain.py
-planning/      strategy_model.py   ROI / strategy decision model
-data/          sample_transactions.csv (synthetic, PaySim format), test_cases.csv
-agents/        fraud_agent.py   Claude investigates with read-only tools
-               risk_agent.py    final decision, enforced in code
-               compliance_agent.py   runs the AML rules
-detection/     compliance_rules.py   AML rules
-               security_controls.py  ISO/IEC 27001 + CIS control register and checks
-               anomaly_detection.py  explainable 0-100 score, no AI
-core/          data.py, tools.py, tracing.py (PRISM), masking.py, audit.py
-config/        settings.py      all thresholds in one place
-dashboard/     app.py           Streamlit demo; pages/ ATO test lab, strategy model
-scripts/       generate_data.py, evaluate.py, security_check.py, run_ato_tests.py,
-               strategy_report.py
-tests/         offline tests, no keys needed
-```
-
-## How it works
-
-1. **Data** (`core/data.py`): PaySim-format transactions. A synthetic
-   generator plants account-takeover fraud (whole balance sent to a new "mule"
-   account that collects from several victims and cashes out) and false alarms
-   (large transfers to an account the customer has paid many times).
-2. **Tools** (`core/tools.py`): read-only lookups of the sender's history, the
-   recipient's profile, the balance pattern and velocity. They only see
-   transactions **before** the one under review and **never** see the fraud
-   labels.
-3. **Fraud agent** (`agents/fraud_agent.py`): Claude (`claude-opus-5-5`)
-   chooses which tools to call, then calls `submit_decision`.
-4. **Risk agent** (`agents/risk_agent.py`): code, not the prompt, has the final
-   word. It escalates an approval that skipped key checks, follows a failed
-   tool or contradicts a high risk score, and sends every amount at or above
-   `HUMAN_REVIEW_AMOUNT` to a human. Nothing in the system can move money.
-5. **Tracing** (`core/tracing.py`): each investigation is one PRISM session.
-   Every Claude call goes through `trace_llm`, and the tool calls, the risk
-   check and the decision go in as one trajectory. A local copy goes to
-   `traces.jsonl`.
-
-## Anomaly detection (second opinion)
-
-`detection/anomaly_detection.py` scores each transaction from 0 to 100 with
-plain, explainable signals: the account is emptied, money that just arrived is
-moved straight on, a new or brand-new recipient, a recipient collecting from
-many senders, an unusual amount or a burst of activity. An established payee
-lowers the score. Claude never sees this score, so it stays independent. If
-Claude approves but the score is `ANOMALY_ESCALATE_SCORE` (40) or higher, the
-risk agent escalates the case to a human. The combined risk shown is the more
-cautious of the two scores.
-
-## AML compliance rules
-
-Deterministic rules in `detection/compliance_rules.py`; thresholds in
-`config/settings.py`. A **high** hit blocks the AI from approving, so a
-compliance officer must review.
-
-| Rule | Detects | Severity |
+| Stage | Attacker action | Covered by |
 |---|---|---|
-| AML-01 | Either party on the sanctions watchlist (`data/watchlist.csv`, synthetic) | high |
-| AML-02 | Structuring: 3+ amounts just under the 10,000 reporting threshold within 24h | high |
-| AML-03 | Rapid pass-through: money received in the last 24h sent straight back out (mule) | high |
-| AML-04 | Amount 20x or more above the customer's median | medium |
+| 1-2 Credential access | Stuffing, spraying, enumeration | ATO-01 to ATO-03 |
+| 3 Defeat MFA | Fatigue, code guessing, skipped step, SIM swap, stolen session | ATO-06 to ATO-10 |
+| 4 Initial access | Impossible travel, new device on a risky network | ATO-04, ATO-05 |
+| 5-6 Persistence and hiding | Contact change, reset tokens, notifications, new authenticator, old sessions | ATO-11 to ATO-13, ATO-16, ATO-18 |
+| 7 Monetise | New payee and drain, limit raise, other customers' accounts, race conditions | ATO-14, ATO-15, ATO-17, ATO-19 |
+| 8 Cash out | Mule pass-through | [Payment fraud investigator](#foundation-payment-fraud-investigator-cash-out-stage) |
+| Attacks on the tool | Prompt injection, excessive agency, evasion, data leakage, alert flooding | AI-01 to AI-05 |
+| Detect and respond | Log tampering, response time | DR-01, DR-02 |
 
-## Security controls (ISO/IEC 27001:2022 and CIS Controls v8)
+## Security of the product (ISO/IEC 27001:2022 and CIS Controls v8)
 
-Each control is implemented in code and checked by
-`python scripts/security_check.py` (exit status 1 on any failure). This is a
-mapping of the agent's controls to the frameworks, not a certification.
+Banks will ask whether TakeoverGuard itself is secure. Each control is
+implemented in code and checked by `python scripts/security_check.py` (exit
+status 1 on any failure). This is a mapping of the product's controls to the
+frameworks, not a certification.
 
 | Control | ISO/IEC 27001:2022 Annex A | CIS Controls v8 | Implemented in |
 |---|---|---|---|
@@ -147,11 +90,76 @@ mapping of the agent's controls to the frameworks, not a certification.
 | SEC-07 Monitoring: tool failures, access denials and runaway loops become security events in the trace | A.8.16 | 8 | `agents/fraud_agent.py` |
 | SEC-08 AI model supplier over HTTPS with a pinned model | A.5.19, A.5.23 | 15 | `core/llm.py` |
 
-## Setup
+## Business case: strategy model (ROI)
+
+The **Strategy model (ROI)** page compares three ways of handling fraud alerts
+(manual review, a score threshold, AI-assisted) on monthly cost, analysts
+needed, fraud caught and customers held, across editable scenarios in
+`config/scenarios/`. Every input says whether it is measured or assumed,
+guardrails flag missing or inconsistent inputs, and every number shows its
+formula. Use it to show a prospect what TakeoverGuard would save them.
 
 ```bash
-pip install -r requirements.txt
-cp .env.example .env   # then add your keys as shown below; never commit .env
+python scripts/strategy_report.py            # add --prism to log each run to PRISM
+```
+
+## Foundation: payment fraud investigator (cash-out stage)
+
+TakeoverGuard grew out of a payment fraud investigator, which now covers the
+last stage of a takeover: once an attacker is in, the money still has to leave.
+It is the **Payment fraud investigator** page of the dashboard.
+
+1. **Data** (`core/data.py`): PaySim-format payments. A synthetic generator
+   plants takeover cash-outs (the whole balance sent to a new "mule" account
+   that collects from several victims and cashes out) and false alarms (large
+   transfers to an account the customer has paid many times).
+2. **Fraud agent** (`agents/fraud_agent.py`): Claude (`claude-opus-5-5`)
+   investigates a flagged payment with read-only tools (`core/tools.py`) and
+   recommends approve, hold or escalate.
+3. **Second opinions**: an explainable 0-100 anomaly score
+   (`detection/anomaly_detection.py`) that Claude never sees, and AML rules
+   (`detection/compliance_rules.py`).
+4. **Risk agent** (`agents/risk_agent.py`): code has the final word. It
+   escalates an approval that skipped key checks, contradicts a high score,
+   disagrees with the anomaly score (40 or more), follows a high AML hit, or is
+   at or above `HUMAN_REVIEW_AMOUNT`.
+5. **Tracing** (`core/tracing.py`): each investigation is one PRISM session.
+
+| AML rule | Detects | Severity |
+|---|---|---|
+| AML-01 | Either party on the sanctions watchlist (`data/watchlist.csv`, synthetic) | high |
+| AML-02 | Structuring: 3+ amounts just under the 10,000 reporting threshold within 24h | high |
+| AML-03 | Rapid pass-through: money received in the last 24h sent straight back out (mule) | high |
+| AML-04 | Amount 20x or more above the customer's median | medium |
+
+```bash
+python scripts/generate_data.py      # synthetic payments (or: python scripts/generate_data.py data/paysim.csv)
+python scripts/evaluate.py           # 10 payment cases, scored against the answer key (needs a model key)
+```
+
+## Layout
+
+```
+ato/           TakeoverGuard: catalog.py (26 test cases), world.py (simulator),
+               detection.py, ml.py, scoring.py, runner.py, explain.py
+dashboard/     app.py (page router); views/ ato_test_lab.py (home),
+               payment_investigator.py, strategy_model.py
+planning/      strategy_model.py   ROI / strategy decision model
+agents/        payment investigator: fraud_agent.py, risk_agent.py, compliance_agent.py
+detection/     security_controls.py (ISO/CIS register), anomaly_detection.py,
+               compliance_rules.py (AML)
+core/          data.py, tools.py, llm.py, tracing.py (PRISM), masking.py, audit.py
+config/        settings.py (all thresholds), scenarios/ (ROI scenarios)
+data/          synthetic payments, test cases, watchlist
+scripts/       run_ato_tests.py, strategy_report.py, security_check.py,
+               generate_data.py, evaluate.py
+tests/         offline tests, no keys needed
+```
+
+## Keys
+
+```bash
+cp .env.example .env   # never commit .env
 ```
 
 Add the PRISM key without it appearing on screen or in your shell history:
@@ -167,17 +175,18 @@ For Claude, set **one** of these in `.env` the same way:
   translates to Nicrron's OpenAI-style API). The model is pinned with
   `NICRRON_MODEL` (default `anthropic/claude-opus-5-5`), never `nicrron/auto`.
 
-`LLM_PROVIDER=auto` uses whichever key is set.
+`LLM_PROVIDER=auto` uses whichever key is set. Also set `MASK_SALT` to any long
+random string.
 
 ## GitHub Actions
 
 `.github/workflows/ci.yml` runs the offline tests and the security check on
 every push and pull request. No keys are needed for that.
 
-To run the live agent on GitHub: open **Actions → CI → Run workflow**, tick
-**run_agent**, and optionally list transaction ids. It uses these repository
-secrets (**Settings → Secrets and variables → Actions → New repository
-secret**):
+To run the live payment investigator on GitHub: open **Actions → CI → Run
+workflow**, tick **run_agent**, and optionally list transaction ids. It uses
+these repository secrets (**Settings → Secrets and variables → Actions → New
+repository secret**):
 
 | Secret | Value |
 |---|---|
@@ -187,15 +196,3 @@ secret**):
 
 Secrets are never printed in the logs. The live run is manual only, because
 each run is billed.
-
-## Run
-
-```bash
-python scripts/generate_data.py      # synthetic data (or: python scripts/generate_data.py data/paysim.csv)
-python scripts/evaluate.py           # 10 test cases, scored against the answer key
-streamlit run dashboard/app.py       # demo page
-python scripts/security_check.py     # security control report
-python -m pytest -q                  # offline tests
-```
-
-Each case's PRISM session id is printed, so you can open its trace in PRISM.
