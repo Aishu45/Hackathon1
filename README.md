@@ -1,13 +1,75 @@
-# compliance-fraud-agent
+# TakeoverGuard
 
-Trust & Risk track. A rule flags suspicious payments, and most flags are false
-alarms. This project investigates each one the way an analyst would, decides
-**approve**, **hold** or **escalate**, and explains why. Every step is
-traced in PRISM, so you can see exactly how each decision was made.
+**AI-powered anomaly detection that predicts account takeovers before the money
+leaves.** A B2B SaaS for the risk teams of banks and online payment companies.
+
+TakeoverGuard simulates 26 account-takeover attacks mapped to MITRE ATT&CK,
+OWASP and ISO/IEC 27001, detects them with rules and a machine-learning model,
+scores each one (risk score, criticality and business impact in money),
+recommends the fix, and re-tests to prove the fix works. Every step is traced
+in PRISM.
+
+It builds on a fraud investigation agent: Claude investigates each flagged
+payment, decides **approve**, **hold** or **escalate**, and explains why.
+
+## Account Takeover Test Lab
+
+| Step | What happens | Code |
+|---|---|---|
+| Simulate | Normal customer activity (logins, MFA, devices, payees, payments) plus one run of each attack | `ato/world.py` |
+| Detect | One rule per test case, plus an Isolation Forest on session behaviour | `ato/detection.py`, `ato/ml.py` |
+| Score | Risk = likelihood x impact; outcome prevented, detected or missed; annual loss | `ato/scoring.py` |
+| Fix | Each test case has a control; switch it on and the attack is blocked | `ato/catalog.py` |
+| Explain | Claude writes the attack story for a risk committee, traced in PRISM | `ato/explain.py` |
+
+The 26 test cases cover login attacks (credential stuffing, spraying,
+enumeration, impossible travel, risky new device), MFA bypass (fatigue, code
+brute force, skipped step, SIM swap, stolen session), account-change business
+logic (contact change, reset tokens, notifications, new payee drain, limit
+raise, new authenticator, BOLA, session revocation, race conditions), attacks
+on the AI tool (prompt injection, excessive agency, evasion, data leakage,
+alert flooding) and detection and response (log tampering, response time).
+
+**How scores are calculated** (all assumptions, shown with every result):
+
+- Inherent risk = likelihood (1-5) x impact (1-5). Critical 20-25, High 12-16,
+  Medium 5-10, Low 1-4.
+- Prevented by a fix: likelihood drops by 3. Detected: impact drops by 2.
+- Annual loss = incidents a year (from likelihood, per 100,000 customers) x
+  loss per incident x exposure (missed 100%, detected 30%, prevented 5%).
+
+On the synthetic data: 6 critical risks and about 6.2m a year of exposure with
+no controls; detection alone cuts exposure by 70%; all fixes leave 0 critical
+risks. Rules raise no false alarms on normal activity; the ML model flags about
+1% of normal sessions.
+
+**Data.** No public dataset covers all 26 attacks, so `ato/world.py` generates
+synthetic activity with exact labels. Its columns follow public login datasets
+such as the RBA (Risk-Based Authentication) dataset, so real login logs can
+replace it; PaySim covers payments. The labels are used only to grade the
+detectors, never by them.
+
+```bash
+python scripts/run_ato_tests.py                     # before and after all fixes
+python scripts/run_ato_tests.py --fixes ATO-06,ATO-09 --prism --explain ATO-09
+streamlit run dashboard/app.py                      # then open "ATO test lab"
+```
+
+## Strategy model (ROI)
+
+The "Strategy model" page compares three ways of handling fraud alerts
+(manual review, a score threshold, AI-assisted) on monthly cost, analysts
+needed, fraud caught and customers held, across editable scenarios in
+`config/scenarios/`. Every input says whether it is measured or assumed,
+guardrails flag missing or inconsistent inputs, and every number shows its
+formula. Run `python scripts/strategy_report.py`.
 
 ## Layout
 
 ```
+ato/           catalog.py (26 test cases), world.py (simulator), detection.py, ml.py,
+               scoring.py, runner.py, explain.py
+planning/      strategy_model.py   ROI / strategy decision model
 data/          sample_transactions.csv (synthetic, PaySim format), test_cases.csv
 agents/        fraud_agent.py   Claude investigates with read-only tools
                risk_agent.py    final decision, enforced in code
@@ -17,8 +79,9 @@ detection/     compliance_rules.py   AML rules
                anomaly_detection.py  explainable 0-100 score, no AI
 core/          data.py, tools.py, tracing.py (PRISM), masking.py, audit.py
 config/        settings.py      all thresholds in one place
-dashboard/     app.py           Streamlit demo
-scripts/       generate_data.py, evaluate.py, security_check.py
+dashboard/     app.py           Streamlit demo; pages/ ATO test lab, strategy model
+scripts/       generate_data.py, evaluate.py, security_check.py, run_ato_tests.py,
+               strategy_report.py
 tests/         offline tests, no keys needed
 ```
 

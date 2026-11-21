@@ -5,3 +5,4 @@ streamlit>=1.40
 pytest>=8.0
 python-dotenv>=1.0
 httpx>=0.27
+scikit-learn>=1.4

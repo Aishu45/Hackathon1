@@ -22,7 +22,17 @@ Tools may only look up the two parties of the transaction under review, and
 account ids are pseudonymised in everything sent to PRISM. Every decision is
 written to a hash-chained audit log.
 
+The account-takeover test lab simulates 26 takeover attacks mapped to MITRE
+ATT&CK, OWASP and ISO/IEC 27001, detects them with rules and an Isolation
+Forest, and scores each one (risk score, criticality, annual loss) before and
+after fixes. A Claude explainer writes each result up for a risk committee,
+using only the facts from the run. A deterministic strategy model compares
+alert-handling strategies on monthly cost.
+
 ## How it runs
 | Agent | Starts by | Schedule | Can do |
 | --- | --- | --- | --- |
 | fraud-investigator | user message (an analyst picks a flagged transaction in the Streamlit app, or the evaluation script runs the test cases) | - | get_customer_history, get_recipient_profile, check_balance_pattern, check_velocity (all read-only), submit_decision (records a recommendation only); compliance and risk checks run as steps of the same run |
+| ato-test-runner | user message (scripts/run_ato_tests.py --prism, or the dashboard button) | - | simulates and detects 26 attacks; records results only (no model call) |
+| ato-explainer | user message (the dashboard's Explain button, or --explain) | - | one model call, no tools; writes an explanation of one result |
+| strategy-model | user message (scripts/strategy_report.py --prism, or the dashboard button) | - | deterministic cost model; records inputs, calculations and recommendation (no model call) |

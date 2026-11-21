@@ -1,0 +1,3 @@
+{"name": "Realistic queue, imperfect anomaly score",
+ "description": "5% fraud; the threshold sends 85% of fraud but also 30% of false alarms to analysts.",
+ "overrides": {"fraud_share": 0.05, "threshold_fraud_reviewed": 0.85, "threshold_genuine_reviewed": 0.30}}

@@ -118,8 +118,9 @@ class NicrronClient:
 
     def create(self, system: str, messages: list[dict], tools: list[dict]) -> Response:
         payload = {"model": settings.NICRRON_MODEL, "max_tokens": 16000,
-                   "messages": _to_openai_messages(system, messages),
-                   "tools": _to_openai_tools(tools)}
+                   "messages": _to_openai_messages(system, messages)}
+        if tools:
+            payload["tools"] = _to_openai_tools(tools)
         resp = self.http.post(f"{self.base_url}/chat/completions", json=payload,
                               headers={"Authorization": f"Bearer {self.api_key}"})
         if resp.status_code != 200:
@@ -147,12 +148,13 @@ def create(client: Any, system: str, messages: list[dict], tools: list[dict]) ->
     """One model turn. Returns an object with .content, .stop_reason, .usage and .model."""
     if isinstance(client, NicrronClient):
         return client.create(system, messages, tools)
+    extra = {"tools": tools} if tools else {}
     return client.beta.messages.create(
         model=settings.MODEL,
         max_tokens=16000,
         system=system,
-        tools=tools,
         messages=messages,
+        **extra,
         output_config={"effort": "medium"},
         # If a safety classifier declines, retry on a fallback model in the same call.
         betas=["server-side-fallback-2026-07-01"],

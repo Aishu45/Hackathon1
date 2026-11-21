@@ -1,0 +1,4 @@
+{"name": "Fraud wave",
+ "description": "Imperfect score as above, but fraud doubles to 10% of alerts and losses rise to 4,000.",
+ "overrides": {"fraud_share": 0.10, "avg_fraud_loss": 4000, "threshold_fraud_reviewed": 0.85,
+               "threshold_genuine_reviewed": 0.30}}
