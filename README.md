@@ -106,6 +106,25 @@ For Claude, set **one** of these in `.env` the same way:
 
 `LLM_PROVIDER=auto` uses whichever key is set.
 
+## GitHub Actions
+
+`.github/workflows/ci.yml` runs the offline tests and the security check on
+every push and pull request. No keys are needed for that.
+
+To run the live agent on GitHub: open **Actions → CI → Run workflow**, tick
+**run_agent**, and optionally list transaction ids. It uses these repository
+secrets (**Settings → Secrets and variables → Actions → New repository
+secret**):
+
+| Secret | Value |
+|---|---|
+| `NICRRON_API_KEY` | your Nicrron key |
+| `PRISMTRACE_API_KEY` | your PRISM key |
+| `MASK_SALT` | any long random string |
+
+Secrets are never printed in the logs. The live run is manual only, because
+each run is billed.
+
 ## Run
 
 ```bash

@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_agent:
+        description: "Also run the live evaluation (calls Claude via Nicrron; billed)"
+        type: boolean
+        default: false
+      cases:
+        description: "Optional transaction ids, space-separated (blank = all test cases)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Offline: no keys needed, no model calls.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Security controls (ISO/IEC 27001 + CIS)
+        run: python scripts/security_check.py
+
+  evaluate:
+    # Live run, only when started by hand with run_agent ticked.
+    if: github.event_name == 'workflow_dispatch' && inputs.run_agent
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      LLM_PROVIDER: nicrron
+      NICRRON_API_KEY: ${{ secrets.NICRRON_API_KEY }}
+      PRISMTRACE_API_KEY: ${{ secrets.PRISMTRACE_API_KEY }}
+      MASK_SALT: ${{ secrets.MASK_SALT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Check the secrets are set (values are never printed)
+        run: |
+          missing=0
+          for name in NICRRON_API_KEY PRISMTRACE_API_KEY MASK_SALT; do
+            if [ -z "${!name}" ]; then echo "::error::Repository secret $name is not set"; missing=1; fi
+          done
+          exit $missing
+      - name: Run the agent on the test cases (traces go to PRISM)
+        env:
+          CASES: ${{ inputs.cases }}  # passed as data, never pasted into the script
+        run: |
+          if ! [[ "$CASES" =~ ^(T[0-9]+( +T[0-9]+)*)?$ ]]; then
+            echo "::error::cases must be transaction ids like T0000372, separated by spaces"; exit 1
+          fi
+          python scripts/evaluate.py $CASES
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-results
+          path: |
+            results/latest.json
+            audit_log.jsonl
