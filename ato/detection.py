@@ -51,6 +51,7 @@ def detect(df: pd.DataFrame, known_users: set[str], registry: dict | None = None
     """registry: {"devices": {(user, device)}, "asns": {(user, asn)}} the bank holds on record."""
     registry = registry or {}
     hits: list[Hit] = []
+    now = df["t"].max() if len(df) else 0  # latest event seen; live streams are still arriving
     add = lambda rule, msg, rows: hits.append(Hit(rule, msg, [int(r) for r in rows]))  # noqa: E731
     fails = df[df["event"] == "login_fail"]
 
@@ -151,7 +152,7 @@ def detect(df: pd.DataFrame, known_users: set[str], registry: dict | None = None
     notes = df[df["event"] == "notification"]
     for i, row in df[df["event"].isin(["contact_change", "device_registered"])].iterrows():
         n = notes[(notes["user_id"] == row["user_id"]) & (notes["t"] - row["t"]).between(0, 5)]
-        if n.empty:
+        if n.empty and now - row["t"] >= 5:  # give the notification its 5 minutes
             add("ATO-13", f"{row['user_id']}: {row['event']} with no notification", [i])
     for i in df.index[(df["event"] == "alerts_disabled") | (df["reason"] == "alert_settings")]:
         add("ATO-13", f"{df.loc[i, 'user_id']}: attempt to change alert settings", [i])
@@ -246,7 +247,7 @@ def detect(df: pd.DataFrame, known_users: set[str], registry: dict | None = None
     for i, c in df[df["event"] == "attack_confirmed"].iterrows():
         f_ = frozen[(frozen["user_id"] == c["user_id"]) & (frozen["t"] >= c["t"])]
         delay = (f_["t"].min() - c["t"]) if len(f_) else None
-        if delay is None or delay > 15:
+        if (delay is None and now - c["t"] > 15) or (delay is not None and delay > 15):
             add("DR-02", f"{c['user_id']}: account frozen {'never' if delay is None else f'{delay:.0f} min'} "
                          "after the takeover was confirmed", [i, *f_.index[:1]])
     return hits

@@ -13,7 +13,7 @@ in PRISM.
 
 ```bash
 pip install -r requirements.txt
-streamlit run dashboard/app.py                      # opens on the ATO Test Lab
+streamlit run dashboard/app.py                      # opens on the ATO Test Lab; see also Live monitor
 python scripts/run_ato_tests.py                     # all 26 tests, before and after all fixes
 python scripts/run_ato_tests.py --fixes ATO-06,ATO-09 --prism --explain ATO-09
 python scripts/security_check.py                    # security controls of the product itself
@@ -58,6 +58,36 @@ synthetic activity with exact labels. Its columns follow public login datasets
 such as the RBA (Risk-Based Authentication) dataset, so real login logs can
 replace it; PaySim covers payments. The labels are used only to grade the
 detectors, never by them.
+
+## Live monitor (real-time demo)
+
+The **Live monitor** page streams customer activity in real time and lets you
+attack it on stage. A live engine (`ato/live.py`) starts with the page, or on
+its own with `python scripts/live_engine.py`.
+
+- The clock runs at 60x: one real second is one simulated minute. Use
+  **Fast-forward** for attacks that take hours or days (reset tokens, payee
+  warm-up).
+- Detection (all 26 rules plus the ML model) runs every few seconds on a
+  sliding 4-day window; new alerts appear within about 5 seconds.
+- Every rule alert is sent to PRISM as its own session (agent
+  `ato-live-monitor`), with account ids masked.
+- **Explain with AI** sends the alert's facts to Claude (through Nicrron or
+  Anthropic); the explanation appears on the alert within about a minute.
+
+**Demo script (about 2 minutes)**
+
+1. Open **Live monitor**: activity streams, no alerts. *"This is normal traffic."*
+2. Click **🚨 ATO-06 MFA fatigue** and **🚨 ATO-14 Payee + drain**: Critical
+   alerts appear, marked NOT BLOCKED, with MITRE, OWASP and ISO mappings.
+3. Click **Explain with AI** on one; open its PRISM session on a second screen.
+4. Switch on the ATO-14 fix, launch it again: the new alert says
+   **BLOCKED by fix**.
+5. Click **🚨 ATO-09 SIM swap**: about 90 seconds later the SIM-swap login and
+   drain are caught. (Launch it early in the demo.)
+
+The data is simulated; the engine reads events, so a bank's real login and
+payment events could feed the same detectors.
 
 ## Coverage of the account-takeover kill chain
 
@@ -141,8 +171,8 @@ python scripts/evaluate.py           # 10 payment cases, scored against the answ
 
 ```
 ato/           TakeoverGuard: catalog.py (26 test cases), world.py (simulator),
-               detection.py, ml.py, scoring.py, runner.py, explain.py
-dashboard/     app.py (page router); views/ ato_test_lab.py (home),
+               detection.py, ml.py, scoring.py, runner.py, explain.py, live.py
+dashboard/     app.py (page router); views/ ato_test_lab.py (home), live_monitor.py,
                payment_investigator.py, strategy_model.py
 planning/      strategy_model.py   ROI / strategy decision model
 agents/        payment investigator: fraud_agent.py, risk_agent.py, compliance_agent.py
@@ -151,7 +181,7 @@ detection/     security_controls.py (ISO/CIS register), anomaly_detection.py,
 core/          data.py, tools.py, llm.py, tracing.py (PRISM), masking.py, audit.py
 config/        settings.py (all thresholds), scenarios/ (ROI scenarios)
 data/          synthetic payments, test cases, watchlist
-scripts/       run_ato_tests.py, strategy_report.py, security_check.py,
+scripts/       run_ato_tests.py, live_engine.py, strategy_report.py, security_check.py,
                generate_data.py, evaluate.py
 tests/         offline tests, no keys needed
 ```

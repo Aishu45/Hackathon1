@@ -234,3 +234,31 @@ def log_ato_run(label: str, report, summary: dict) -> str | None:
                              conversation_id=session_id, request_id=session_id, model="rules+isolation-forest",
                              final_status="success" if summary["missed"] == 0 else "error")
     return session_id
+
+
+LIVE_AGENT_ID = "ato-live-monitor"
+LIVE_AGENT_NAME = "Account Takeover Live Monitor"
+
+
+def log_live_alert(alert: dict, tc, evidence) -> str | None:
+    """Send one live detection to PRISM: the evidence events, then the alert.
+    Account ids are masked. Returns the session id, or None when no PRISM key is set."""
+    session_id = f"live-{alert['rule']}-{uuid.uuid4().hex[:8]}"
+    steps = [{"step_type": "tool_call", "tool_name": "event_stream", "label": f"Event: {e['event']}",
+              "input_summary": f"{e.get('user_id')} {e.get('country') or ''} {e.get('asn') or ''} "
+                               f"{e.get('device_id') or ''}"[:500],
+              "output_summary": f"amount {e.get('amount')}, payee {e.get('payee_id')}, "
+                                f"reason {e.get('reason')}"[:500]}
+             for e in evidence.head(30).to_dict("records")]
+    steps.append({"step_type": "final_answer", "label": f"Alert {alert['rule']} {tc.title}",
+                  "output_summary": (f"{alert['message']}. Risk {tc.inherent_score} ({alert['criticality']}); "
+                                     f"{'blocked by a fix' if alert['blocked'] else 'not blocked'}. MITRE {tc.mitre}; "
+                                     f"OWASP {tc.owasp}; ISO 27001 {tc.iso27001}. Fix: {tc.fix}")[:1000]})
+    _local({"session_id": session_id, "kind": "live_alert", "alert": alert["id"]})
+    client = get_client()
+    if not client:
+        return None
+    client.submit_trajectory(mask(steps), agent_name=LIVE_AGENT_NAME, agent_id=LIVE_AGENT_ID,
+                             conversation_id=session_id, request_id=alert["id"], model="rules+isolation-forest",
+                             final_status="success" if alert["blocked"] else "error", async_send=True)
+    return session_id

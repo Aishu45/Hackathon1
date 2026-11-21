@@ -155,21 +155,26 @@ class World:
         u.devices.insert(0, dev)
 
     def generate_normal(self) -> None:
-        r = self.rng
         for day in range(self.days):
-            for u in self.users.values():
-                if r.random() < 0.7:
-                    self.normal_session(u, day * DAY + r.uniform(8 * 60, 22 * 60))
-                if r.random() < 0.004:
-                    self.normal_new_device(u, day * DAY + r.uniform(8 * 60, 22 * 60))
-                if r.random() < 0.002:  # travels: logs in abroad on a later day
-                    u.country = r.choice(FAR_COUNTRIES)
-                    u.asn = "AS-ROAMING"
-                if r.random() < 0.0015:  # new phone: SIM changed, carries on as normal
-                    self.emit(day * DAY + r.uniform(0, 8 * 60), u.id, "sim_change", channel="telco")
-            for _ in range(r.randint(1, 4)):  # routine low-level alerts from other systems
-                self.emit(day * DAY + r.uniform(0, DAY), None, "alert", reason="routine",
-                          text=r.choice(["card-system", "aml-batch", "fraud-rules"]))
+            self.generate_day(day)
+
+    def generate_day(self, day: int) -> None:
+        """Normal activity for one day (events may lie in the future; the live
+        engine releases them as its clock reaches them)."""
+        r = self.rng
+        for u in self.users.values():
+            if r.random() < 0.7:
+                self.normal_session(u, day * DAY + r.uniform(8 * 60, 22 * 60))
+            if r.random() < 0.004:
+                self.normal_new_device(u, day * DAY + r.uniform(8 * 60, 22 * 60))
+            if r.random() < 0.002:  # travels: logs in abroad on a later day
+                u.country = r.choice(FAR_COUNTRIES)
+                u.asn = "AS-ROAMING"
+            if r.random() < 0.0015:  # new phone: SIM changed, carries on as normal
+                self.emit(day * DAY + r.uniform(0, 8 * 60), u.id, "sim_change", channel="telco")
+        for _ in range(r.randint(1, 4)):  # routine low-level alerts from other systems
+            self.emit(day * DAY + r.uniform(0, DAY), None, "alert", reason="routine",
+                      text=r.choice(["card-system", "aml-batch", "fraud-rules"]))
 
     def registry(self) -> dict:
         """What the bank holds on record before the period starts: each customer's

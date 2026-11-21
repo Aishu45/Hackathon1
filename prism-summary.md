@@ -26,7 +26,8 @@ The account-takeover test lab simulates 26 takeover attacks mapped to MITRE
 ATT&CK, OWASP and ISO/IEC 27001, detects them with rules and an Isolation
 Forest, and scores each one (risk score, criticality, annual loss) before and
 after fixes. A Claude explainer writes each result up for a risk committee,
-using only the facts from the run. A deterministic strategy model compares
+using only the facts from the run. A live monitor streams simulated activity in real time, runs attacks on demand
+and records each alert as it fires. A deterministic strategy model compares
 alert-handling strategies on monthly cost.
 
 ## How it runs
@@ -36,3 +37,4 @@ alert-handling strategies on monthly cost.
 | ato-test-runner | user message (scripts/run_ato_tests.py --prism, or the dashboard button) | - | simulates and detects 26 attacks; records results only (no model call) |
 | ato-explainer | user message (the dashboard's Explain button, or --explain) | - | one model call, no tools; writes an explanation of one result |
 | strategy-model | user message (scripts/strategy_report.py --prism, or the dashboard button) | - | deterministic cost model; records inputs, calculations and recommendation (no model call) |
+| ato-live-monitor | event stream (the dashboard's Live monitor page or scripts/live_engine.py); attacks launched on demand | continuous while running | runs 26 detection rules and an Isolation Forest every few seconds; records each alert (no model call) |

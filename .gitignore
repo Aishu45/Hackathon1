@@ -7,3 +7,4 @@ traces.jsonl
 results/
 data/paysim*.csv
 audit_log.jsonl
+live/

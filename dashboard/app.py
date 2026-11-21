@@ -4,6 +4,7 @@ Run:  streamlit run dashboard/app.py
 
 Pages:
   ATO Test Lab                 (home) 26 account-takeover attacks: detect, score, fix, re-test
+  Live monitor                 real-time stream: launch attacks, see live alerts, PRISM traces
   Payment fraud investigator   Claude investigates one flagged payment (the cash-out stage)
   Strategy model (ROI)         compares alert-handling strategies on monthly cost
 """
@@ -17,6 +18,7 @@ st.set_page_config(page_title="TakeoverGuard", layout="wide")
 page = st.navigation({
     "TakeoverGuard": [
         st.Page(HERE / "views" / "ato_test_lab.py", title="ATO Test Lab", icon="🛡️", default=True),
+        st.Page(HERE / "views" / "live_monitor.py", title="Live monitor", icon="📡"),
     ],
     "Foundation and business case": [
         st.Page(HERE / "views" / "payment_investigator.py", title="Payment fraud investigator", icon="🔎"),
