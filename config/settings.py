@@ -18,6 +18,12 @@ def _num(name: str, default: float) -> float:
 
 # Claude model for the fraud agent.
 MODEL = os.environ.get("FRAUD_AGENT_MODEL", "").strip() or "claude-opus-5-5"
+
+# How to reach Claude: "anthropic" (direct), "nicrron" (gateway), or "auto".
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "").strip().lower() or "auto"
+NICRRON_BASE_URL = os.environ.get("NICRRON_BASE_URL", "").strip() or "https://api.nicrron.ai/v1"
+# Pin a specific model; never "nicrron/auto", so results are reproducible.
+NICRRON_MODEL = os.environ.get("NICRRON_MODEL", "").strip() or f"anthropic/{MODEL}"
 MAX_AGENT_TURNS = int(_num("MAX_AGENT_TURNS", 8))
 
 # Alert rule: what gets flagged for investigation in the first place.

@@ -149,6 +149,18 @@ def _monitoring() -> tuple[str, str]:
     return PASS, detail + " Traces go to PRISM."
 
 
+def _ai_supplier() -> tuple[str, str]:
+    from core import llm
+    if llm.provider() == "anthropic":
+        return PASS, f"Claude called directly through Anthropic ({settings.MODEL})."
+    if not settings.NICRRON_BASE_URL.startswith("https://"):
+        return FAIL, "The Nicrron endpoint must use HTTPS."
+    if settings.NICRRON_MODEL.endswith("/auto"):
+        return FAIL, "Model routing is set to auto; pin a specific model so results are reproducible."
+    return PASS, (f"Third-party gateway Nicrron over HTTPS, model pinned to {settings.NICRRON_MODEL}; "
+                  "transaction data passes through Nicrron, so review its terms as a supplier.")
+
+
 CONTROLS = [
     Control("SEC-01", "Least-privilege agent tools",
             "A.5.15 Access control; A.8.2 Privileged access rights",
@@ -172,6 +184,10 @@ CONTROLS = [
     Control("SEC-07", "Monitoring of agent behaviour",
             "A.8.16 Monitoring activities",
             "8 Audit Log Management", "agents/fraud_agent.py, core/tracing.py", _monitoring),
+    Control("SEC-08", "AI model supplier: HTTPS and a pinned model",
+            "A.5.19 Information security in supplier relationships; "
+            "A.5.23 Information security for use of cloud services",
+            "15 Service Provider Management", "core/llm.py, config/settings.py", _ai_supplier),
 ]
 
 

@@ -1,7 +1,8 @@
 # Fraud Investigation Agent
 
 Python project (compliance-fraud-agent). Claude (Anthropic SDK, Messages API,
-manual tool loop in `agents/fraud_agent.py`) investigates flagged payment
+manual tool loop in `agents/fraud_agent.py`; `core/llm.py` also reaches Claude
+through the Nicrron gateway) investigates flagged payment
 transactions; `agents/risk_agent.py` makes the final code-enforced decision.
 Thresholds live in `config/settings.py`. Data is PaySim-format CSV in `data/`.
 Run tests with `python -m pytest -q`.
@@ -21,7 +22,7 @@ Rules for this repository:
 This project sends traces to PRISM. Env vars: `PRISMTRACE_API_KEY`,
 `PRISMTRACE_PROJECT_ID`, `PRISMTRACE_HOST`.
 
-Tracing is currently wired at: core/tracing.py, agents/fraud_agent.py, agents/compliance_agent.py and agents/risk_agent.py (both traced as steps of the fraud agent's run), scripts/evaluate.py, dashboard/app.py
+Tracing is currently wired at: core/tracing.py, core/llm.py (both providers, via the fraud agent's loop), agents/fraud_agent.py, agents/compliance_agent.py and agents/risk_agent.py (both traced as steps of the fraud agent's run), scripts/evaluate.py, dashboard/app.py
 
 **Standing rule.** Whenever you add or change an agent, chain, graph, tool,
 retriever, or any entry point that calls a model, wire it to PRISM before you

@@ -14,14 +14,17 @@ from __future__ import annotations
 
 import json
 
+from typing import Any
+
 import anthropic
+import httpx
 import pandas as pd
 
 from agents import compliance_agent
 from agents.risk_agent import apply_policy
 from config.settings import MAX_AGENT_TURNS as MAX_TURNS
-from config.settings import MAX_TOOL_CALLS, MODEL
-from core import audit, tracing
+from config.settings import MAX_TOOL_CALLS
+from core import audit, llm, tracing
 from core.tools import DECISION_TOOL, TOOL_DEFINITIONS, ToolBox
 from detection.anomaly_detection import score_transaction
 
@@ -59,9 +62,9 @@ def _describe(txn: dict, hits: list) -> str:
 
 
 def investigate(transactions: pd.DataFrame, txn_id: str,
-                client: anthropic.Anthropic | None = None) -> dict:
+                client: Any = None) -> dict:
     """Investigate one transaction and return the decision with its evidence."""
-    client = client or anthropic.Anthropic()
+    client = client or llm.default_client()  # Anthropic directly, or Claude via Nicrron
     toolbox = ToolBox(transactions, txn_id)
     txn = toolbox.txn
     hits = compliance_agent.check(txn, toolbox.past)
@@ -83,18 +86,9 @@ def investigate(transactions: pd.DataFrame, txn_id: str,
         for _ in range(MAX_TURNS):
             start = tracing.timer()
             try:
-                response = client.beta.messages.create(
-                    model=MODEL,
-                    max_tokens=16000,
-                    system=SYSTEM_PROMPT,
-                    tools=TOOL_DEFINITIONS + [DECISION_TOOL],
-                    messages=messages,
-                    output_config={"effort": "medium"},
-                    # If a safety classifier declines, retry on a fallback model in the same call.
-                    betas=["server-side-fallback-2026-07-01"],
-                    fallbacks="default",
-                )
-            except anthropic.APIError as exc:
+                response = llm.create(client, SYSTEM_PROMPT, messages,
+                                      TOOL_DEFINITIONS + [DECISION_TOOL])
+            except (anthropic.APIError, llm.NicrronError, httpx.HTTPError) as exc:
                 stop_note = f"Model call failed: {exc.__class__.__name__}: {exc}"
                 trace.note("Model error", stop_note)
                 break

@@ -82,6 +82,7 @@ mapping of the agent's controls to the frameworks, not a certification.
 | SEC-05 Secrets only in the environment, never in the repo | A.5.17, A.8.9 | 3, 4 | `.gitignore`, `.env.example` |
 | SEC-06 Input validation; tools may only look up the case's two parties | A.8.3, A.8.28 | 6, 16 | `core/tools.py` |
 | SEC-07 Monitoring: tool failures, access denials and runaway loops become security events in the trace | A.8.16 | 8 | `agents/fraud_agent.py` |
+| SEC-08 AI model supplier over HTTPS with a pinned model | A.5.19, A.5.23 | 15 | `core/llm.py` |
 
 ## Setup
 
@@ -96,8 +97,14 @@ Add the PRISM key without it appearing on screen or in your shell history:
 printf "Paste your PRISM key: "; read -rs K; echo; printf 'PRISMTRACE_API_KEY=%s\n' "$K" >> .env; unset K; grep -q '^PRISMTRACE_API_KEY=' .env && echo "Saved in .env"
 ```
 
-For Claude, either set `ANTHROPIC_API_KEY` in `.env` the same way, or run
-`ant auth login`.
+For Claude, set **one** of these in `.env` the same way:
+
+- `ANTHROPIC_API_KEY`: Claude directly from Anthropic.
+- `NICRRON_API_KEY`: Claude through the Nicrron gateway (`core/llm.py`
+  translates to Nicrron's OpenAI-style API). The model is pinned with
+  `NICRRON_MODEL` (default `anthropic/claude-opus-5-5`), never `nicrron/auto`.
+
+`LLM_PROVIDER=auto` uses whichever key is set.
 
 ## Run
 
