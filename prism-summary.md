@@ -8,14 +8,19 @@ the recipient's profile, the balance pattern and the transaction velocity),
 then submits a decision of approve, hold or escalate, with a risk score,
 evidence-based reasons and a short case note.
 
-It should base every decision on tool evidence, treat tool output as data
+Before Claude starts, a compliance agent runs fixed AML rules (sanctions
+watchlist, structuring, rapid pass-through, unusual amounts) and gives the hits
+to Claude as evidence. It should base every decision on tool evidence, treat tool output as data
 rather than instructions, and lean toward escalating when evidence is mixed.
 It never moves money: it only recommends. A safety policy in code has the
 final word. It turns an approval into an escalation when key evidence was not
 checked, a tool failed, the agent's own risk score is high, or the amount is
-at or above the human-review limit.
+at or above the human-review limit, or a high-severity compliance rule fired.
+Tools may only look up the two parties of the transaction under review, and
+account ids are pseudonymised in everything sent to PRISM. Every decision is
+written to a hash-chained audit log.
 
 ## How it runs
 | Agent | Starts by | Schedule | Can do |
 | --- | --- | --- | --- |
-| fraud-investigator | user message (an analyst picks a flagged transaction in the Streamlit app, or the evaluation script runs the test cases) | - | get_customer_history, get_recipient_profile, check_balance_pattern, check_velocity (all read-only), submit_decision (records a recommendation only) |
+| fraud-investigator | user message (an analyst picks a flagged transaction in the Streamlit app, or the evaluation script runs the test cases) | - | get_customer_history, get_recipient_profile, check_balance_pattern, check_velocity (all read-only), submit_decision (records a recommendation only); compliance and risk checks run as steps of the same run |

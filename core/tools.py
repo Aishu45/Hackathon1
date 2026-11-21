@@ -5,11 +5,14 @@ and never see the fraud labels, so the agent cannot cheat with hindsight.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pandas as pd
 
 from core.data import LABEL_COLUMNS
+
+ACCOUNT_ID_FORMAT = re.compile(r"[CM]\d{6,}")
 
 
 def _schema(properties: dict, required: list[str]) -> dict:
@@ -102,7 +105,26 @@ class ToolBox:
         handler = getattr(self, name, None)
         if name not in {t["name"] for t in TOOL_DEFINITIONS} or handler is None:
             raise ValueError(f"Unknown tool {name}")
+        self._validate(args)
         return handler(**args)
+
+    def _validate(self, args: dict[str, Any]) -> None:
+        """Input validation and need-to-know access.
+
+        ISO/IEC 27001:2022 A.8.3 Information access restriction, A.8.28 Secure
+        coding; CIS Controls v8 Control 6 Access Control Management and
+        Control 16 Application Software Security. The agent may only look up
+        the two parties of the transaction under review.
+        """
+        parties = {self.txn["nameOrig"], self.txn["nameDest"]}
+        for key, value in args.items():
+            if key.endswith("_id"):
+                if not isinstance(value, str) or not ACCOUNT_ID_FORMAT.fullmatch(value):
+                    raise PermissionError(f"Rejected {key}: not a valid account id.")
+                if value not in parties:
+                    raise PermissionError(
+                        f"Access denied to {value}: only the sender and recipient of the "
+                        "transaction under review may be looked up.")
 
     def get_customer_history(self, customer_id: str, recipient_id: str) -> dict:
         sent = self.past[self.past["nameOrig"] == customer_id]

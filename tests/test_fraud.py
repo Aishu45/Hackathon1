@@ -6,6 +6,7 @@ import pytest
 
 from agents import fraud_agent as agent
 from agents.risk_agent import apply_policy
+from config import settings
 from config.settings import HUMAN_REVIEW_AMOUNT
 from core import tracing
 from core.data import build_alerts, generate_synthetic, load_transactions, split_answer_key
@@ -24,6 +25,7 @@ def local_traces(tmp_path, monkeypatch):
     monkeypatch.setattr(tracing, "LOCAL_LOG", tmp_path / "traces.jsonl")
     monkeypatch.delenv("PRISMTRACE_API_KEY", raising=False)
     monkeypatch.setattr(tracing, "_client", None)
+    monkeypatch.setattr(settings, "AUDIT_LOG", tmp_path / "audit.jsonl")
 
 
 def test_alerts_mix_fraud_and_false_alarms(df):
@@ -86,7 +88,7 @@ class FakeClient:
         self.turn += 1
         user = kwargs["messages"][0]["content"]
         sender = user.split("sender: ")[1].split("\n")[0]
-        recipient = user.split("recipient: ")[1].strip()
+        recipient = user.split("recipient: ")[1].split("\n")[0]
         usage = SimpleNamespace(input_tokens=10, output_tokens=5)
         if self.turn == 1:
             content = [
@@ -113,4 +115,5 @@ def test_agent_loop_records_evidence_and_decision(df):
     assert result["decision"] in ("approve", "escalate")
     lines = tracing.LOCAL_LOG.read_text().strip().splitlines()
     kinds = [json.loads(line)["kind"] for line in lines]
-    assert kinds == ["llm", "tool", "tool", "llm", "note", "final"]
+    assert kinds == ["note", "llm", "tool", "tool", "llm", "note", "final"]
+    assert result["audit_hash"]

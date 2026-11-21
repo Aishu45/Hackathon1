@@ -13,7 +13,8 @@ import pandas as pd  # noqa: E402
 
 from config.settings import DATA_DIR as DATA  # noqa: E402
 from config.settings import TRANSACTIONS_CSV  # noqa: E402
-from core.data import build_alerts, generate_synthetic, load_transactions  # noqa: E402
+from config.settings import WATCHLIST_CSV  # noqa: E402
+from core.data import SYNTHETIC_WATCHLIST, build_alerts, generate_synthetic, load_transactions  # noqa: E402
 
 
 def main() -> None:
@@ -26,6 +27,9 @@ def main() -> None:
         df = load_transactions(DATA / "raw.csv")
         (DATA / "raw.csv").unlink()
     df.to_csv(TRANSACTIONS_CSV, index=False)
+    if not WATCHLIST_CSV.exists() or len(sys.argv) == 1:
+        pd.DataFrame({"account_id": SYNTHETIC_WATCHLIST,
+                      "list": "synthetic-demo"}).to_csv(WATCHLIST_CSV, index=False)
 
     alerts = build_alerts(df)
     fraud = alerts[alerts["isFraud"] == 1].sample(min(5, int(alerts["isFraud"].sum())), random_state=1)

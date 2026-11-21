@@ -6,3 +6,4 @@ __pycache__/
 traces.jsonl
 results/
 data/paysim*.csv
+audit_log.jsonl

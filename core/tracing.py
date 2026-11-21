@@ -11,6 +11,9 @@ Settings come from the environment (see .env.example):
   PRISMTRACE_HOST        not secret
 
 Without a key the agent still runs and writes traces only to traces.jsonl.
+
+Account ids are pseudonymised (core/masking.py) in everything sent to PRISM;
+the local traces.jsonl keeps the real ids for internal debugging.
 """
 from __future__ import annotations
 
@@ -25,6 +28,8 @@ from typing import Any, Iterator
 
 import prismtrace
 from prismtrace import PRISMtrace
+
+from core.masking import mask
 
 AGENT_ID = "fraud-investigator"  # stable id: PRISM rules and alerts scope to it
 AGENT_NAME = "Fraud Investigation Agent"
@@ -109,7 +114,7 @@ class Investigation:
         client = get_client()
         if client:
             client.trace_llm(
-                model=model, input_messages=inputs, output=output, latency_ms=latency_ms,
+                model=model, input_messages=mask(inputs), output=mask(output), latency_ms=latency_ms,
                 token_count_input=usage.input_tokens, token_count_output=usage.output_tokens,
                 agent_id=AGENT_ID, agent_name=AGENT_NAME, session_id=self.session_id,
                 metadata={"transaction_id": self.txn_id, "stop_reason": response.stop_reason},
@@ -141,7 +146,7 @@ class Investigation:
         client = get_client()
         if client:
             client.submit_trajectory(
-                self.steps, agent_name=AGENT_NAME, agent_id=AGENT_ID,
+                mask(self.steps), agent_name=AGENT_NAME, agent_id=AGENT_ID,
                 conversation_id=self.session_id, request_id=self.txn_id, model=self.model,
                 final_status="success" if not result.get("error") else "error",
             )

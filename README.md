@@ -11,12 +11,14 @@ traced in PRISM, so you can see exactly how each decision was made.
 data/          sample_transactions.csv (synthetic, PaySim format), test_cases.csv
 agents/        fraud_agent.py   Claude investigates with read-only tools
                risk_agent.py    final decision, enforced in code
-               compliance_agent.py   AML checks (next step)
-detection/     anomaly_detection.py, compliance_rules.py (next steps)
-core/          data.py, tools.py, tracing.py (PRISM)
+               compliance_agent.py   runs the AML rules
+detection/     compliance_rules.py   AML rules
+               security_controls.py  ISO/IEC 27001 + CIS control register and checks
+               anomaly_detection.py  (next step)
+core/          data.py, tools.py, tracing.py (PRISM), masking.py, audit.py
 config/        settings.py      all thresholds in one place
 dashboard/     app.py           Streamlit demo
-scripts/       generate_data.py, evaluate.py
+scripts/       generate_data.py, evaluate.py, security_check.py
 tests/         offline tests, no keys needed
 ```
 
@@ -41,6 +43,35 @@ tests/         offline tests, no keys needed
    check and the decision go in as one trajectory. A local copy goes to
    `traces.jsonl`.
 
+## AML compliance rules
+
+Deterministic rules in `detection/compliance_rules.py`; thresholds in
+`config/settings.py`. A **high** hit blocks the AI from approving, so a
+compliance officer must review.
+
+| Rule | Detects | Severity |
+|---|---|---|
+| AML-01 | Either party on the sanctions watchlist (`data/watchlist.csv`, synthetic) | high |
+| AML-02 | Structuring: 3+ amounts just under the 10,000 reporting threshold within 24h | high |
+| AML-03 | Rapid pass-through: money received in the last 24h sent straight back out (mule) | high |
+| AML-04 | Amount 20x or more above the customer's median | medium |
+
+## Security controls (ISO/IEC 27001:2022 and CIS Controls v8)
+
+Each control is implemented in code and checked by
+`python scripts/security_check.py` (exit status 1 on any failure). This is a
+mapping of the agent's controls to the frameworks, not a certification.
+
+| Control | ISO/IEC 27001:2022 Annex A | CIS Controls v8 | Implemented in |
+|---|---|---|---|
+| SEC-01 Least-privilege agent tools (read-only; cannot move money) | A.5.15, A.8.2 | 6 | `core/tools.py` |
+| SEC-02 Segregation of duties: a human approves large or flagged cases | A.5.3 | 6 | `agents/risk_agent.py` |
+| SEC-03 Tamper-evident, hash-chained audit log of every decision | A.8.15, A.5.28, A.5.33 | 8 | `core/audit.py` |
+| SEC-04 Account ids pseudonymised in everything sent to PRISM | A.8.11, A.8.12, A.5.34 | 3 | `core/masking.py` |
+| SEC-05 Secrets only in the environment, never in the repo | A.5.17, A.8.9 | 3, 4 | `.gitignore`, `.env.example` |
+| SEC-06 Input validation; tools may only look up the case's two parties | A.8.3, A.8.28 | 6, 16 | `core/tools.py` |
+| SEC-07 Monitoring: tool failures, access denials and runaway loops become security events in the trace | A.8.16 | 8 | `agents/fraud_agent.py` |
+
 ## Setup
 
 ```bash
@@ -63,6 +94,7 @@ For Claude, either set `ANTHROPIC_API_KEY` in `.env` the same way, or run
 python scripts/generate_data.py      # synthetic data (or: python scripts/generate_data.py data/paysim.csv)
 python scripts/evaluate.py           # 10 test cases, scored against the answer key
 streamlit run dashboard/app.py       # demo page
+python scripts/security_check.py     # security control report
 python -m pytest -q                  # offline tests
 ```
 

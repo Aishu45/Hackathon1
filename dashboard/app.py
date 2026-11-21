@@ -59,12 +59,23 @@ if st.button("Investigate", type="primary"):
     for reason in result["reasons"]:
         st.markdown(f"- {reason}")
 
+    st.markdown("**Compliance rules (AML)**")
+    if result["compliance_hits"]:
+        for hit in result["compliance_hits"]:
+            icon = "🔴" if hit["severity"] == "high" else "🟡"
+            st.markdown(f"{icon} **{hit['rule_id']} {hit['name']}**: {hit['evidence']}")
+    else:
+        st.markdown("No compliance rule fired.")
+    for event in result["security_events"]:
+        st.error(f"Security event: {event}")
+
     st.markdown("**Evidence gathered**")
     for item in result["evidence"]:
         with st.expander(item["tool"]):
             st.json(item["output"])
 
-    st.caption(f"PRISM session: `{result['session_id']}`. Open it in PRISM to see the full trace.")
+    st.caption(f"PRISM session: `{result['session_id']}`. Open it in PRISM to see the full trace. "
+               f"Audit record: `{result['audit_hash'][:16]}…`")
     if show_truth:
         truth = int(answer_key.set_index("txn_id").loc[txn_id, "isFraud"])
         st.info(f"Answer key: {'FRAUD' if truth else 'legitimate'}")

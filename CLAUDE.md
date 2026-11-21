@@ -11,13 +11,17 @@ Rules for this repository:
   read transactions earlier than the one under review.
 - Tools stay read-only. No tool may move money.
 - `agents/risk_agent.py` may only make a decision more cautious.
+- Security controls are registered in `detection/security_controls.py` with
+  their ISO/IEC 27001 and CIS Controls references. When you add or change a
+  control, update its check, and keep `python scripts/security_check.py`
+  free of FAIL results.
 
 ## PRISM tracing (do not remove)
 
 This project sends traces to PRISM. Env vars: `PRISMTRACE_API_KEY`,
 `PRISMTRACE_PROJECT_ID`, `PRISMTRACE_HOST`.
 
-Tracing is currently wired at: core/tracing.py, agents/fraud_agent.py, agents/risk_agent.py (via the fraud agent's policy step), scripts/evaluate.py, dashboard/app.py
+Tracing is currently wired at: core/tracing.py, agents/fraud_agent.py, agents/compliance_agent.py and agents/risk_agent.py (both traced as steps of the fraud agent's run), scripts/evaluate.py, dashboard/app.py
 
 **Standing rule.** Whenever you add or change an agent, chain, graph, tool,
 retriever, or any entry point that calls a model, wire it to PRISM before you

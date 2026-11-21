@@ -19,6 +19,11 @@ from config.settings import ALERT_AMOUNT
 
 LABEL_COLUMNS = ["isFraud", "isFlaggedFraud"]
 
+# Mule accounts used by the synthetic generator. Two of them are on the
+# synthetic sanctions watchlist, plus ids that never appear in the data.
+MULE_ACCOUNTS = [f"C{900000 + i}" for i in range(6)]
+SYNTHETIC_WATCHLIST = ["C900001", "C900004", "C777001", "C777002", "M555001"]
+
 def generate_synthetic(n_customers: int = 400, hours: int = 72, seed: int = 7) -> pd.DataFrame:
     """Make a small PaySim-shaped dataset with planted fraud and false alarms.
 
@@ -28,6 +33,8 @@ def generate_synthetic(n_customers: int = 400, hours: int = 72, seed: int = 7) -
       CASH_OUTs it. Both rows are labelled fraud, as in PaySim.
     - False alarms: customers who move most of their balance to an account
       they have paid many times before (savings, rent, family).
+    - Structuring (AML, not labelled fraud): a few customers send several
+      transfers just under the 10,000 reporting threshold within hours.
     """
     rng = random.Random(seed)
     rows: list[dict] = []
@@ -53,11 +60,20 @@ def generate_synthetic(n_customers: int = 400, hours: int = 72, seed: int = 7) -
     # Habitual recipients make the false alarms: same sender -> same recipient, often.
     habits = {c: rng.choice(customers) for c in rng.sample(customers, 40)}
 
-    mules = [f"C{900000 + i}" for i in range(6)]
+    mules = MULE_ACCOUNTS
     fraud_plan = {rng.randrange(6, hours): [] for _ in range(14)}
     victims = rng.sample(customers, 14)
     for (step, _), victim in zip(fraud_plan.items(), victims):
         fraud_plan[step].append(victim)
+
+    structurers = rng.sample([c for c in customers if c not in habits and c not in victims], 3)
+    for c in structurers:
+        balances[c] = max(balances[c], 120_000)
+    struct_plan: dict[int, list[str]] = {}
+    for c in structurers:
+        start = rng.randrange(28, hours - 12)
+        for k in range(4):
+            struct_plan.setdefault(start + 3 * k, []).append(c)
 
     for step in range(1, hours + 1):
         # Everyday activity. Normal customers never move more than a third of their balance.
@@ -84,6 +100,9 @@ def generate_synthetic(n_customers: int = 400, hours: int = 72, seed: int = 7) -
             if rich:
                 c = rng.choice(rich)
                 add(step, "TRANSFER", balances[c] * rng.uniform(0.6, 0.95), c, habits[c])
+
+        for c in struct_plan.get(step, []):
+            add(step, "TRANSFER", rng.uniform(9_100, 9_950), c, rng.choice(customers))
 
         for victim in fraud_plan.get(step, []):
             mule = rng.choice(mules)
