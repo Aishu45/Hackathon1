@@ -1,0 +1,6 @@
+anthropic>=2.12.0
+prismtrace-sdk>=0.6.0
+pandas>=2.2
+streamlit>=1.40
+pytest>=8.0
+python-dotenv>=1.0
