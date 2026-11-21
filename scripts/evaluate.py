@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
 from agents.fraud_agent import investigate  # noqa: E402
-from config.settings import TEST_CASES_CSV, TRANSACTIONS_CSV  # noqa: E402
+from config.settings import ANOMALY_ESCALATE_SCORE, TEST_CASES_CSV, TRANSACTIONS_CSV  # noqa: E402
 from core import tracing  # noqa: E402
 from core.data import build_alerts  # noqa: E402
 
@@ -40,6 +40,7 @@ def main() -> None:
             rows.append({**result, "is_fraud": int(is_fraud), "correct": correct})
             print(f"{txn_id}  truth={'FRAUD' if is_fraud else 'legit':5}  "
                   f"decision={result['decision']:8}  risk={result['risk_score']}  "
+                  f"anomaly={result['anomaly']['score']:3}  "
                   f"{'OK ' if correct else 'MISS'}  session={result['session_id']}")
             if result["error"]:
                 print(f"    note: {result['error']}")
@@ -48,12 +49,16 @@ def main() -> None:
 
     fraud = [r for r in rows if r["is_fraud"]]
     legit = [r for r in rows if not r["is_fraud"]]
+    threshold = ANOMALY_ESCALATE_SCORE
     alerts = build_alerts(df)
     print()
     print(f"Fraud caught:        {sum(r['correct'] for r in fraud)}/{len(fraud)}")
     print(f"False alarms cleared: {sum(r['correct'] for r in legit)}/{len(legit)}")
     print(f"Baseline rule: flags all {len(alerts)} alerts for review, "
           f"{1 - alerts['isFraud'].mean():.0%} of them false alarms.")
+    print(f"Anomaly score alone (>= {threshold} = suspicious): "
+          f"fraud caught {sum(r['anomaly']['score'] >= threshold for r in fraud)}/{len(fraud)}, "
+          f"false alarms cleared {sum(r['anomaly']['score'] < threshold for r in legit)}/{len(legit)}")
 
     out = ROOT / "results"
     out.mkdir(exist_ok=True)

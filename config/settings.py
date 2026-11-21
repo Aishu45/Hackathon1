@@ -29,6 +29,10 @@ HUMAN_REVIEW_AMOUNT = _num("HUMAN_REVIEW_AMOUNT", 1_000_000)
 # Risk agent: an approval with a risk score at or above this is contradictory.
 HIGH_RISK_SCORE = int(_num("HIGH_RISK_SCORE", 70))
 
+# Risk agent: if Claude approves but the model-free anomaly score is at or
+# above this, the two disagree and a human decides.
+ANOMALY_ESCALATE_SCORE = int(_num("ANOMALY_ESCALATE_SCORE", 40))
+
 # --- AML compliance rules (detection/compliance_rules.py) ---
 WATCHLIST_CSV = DATA_DIR / "watchlist.csv"  # synthetic sanctions list
 REPORTING_THRESHOLD = _num("REPORTING_THRESHOLD", 10_000)  # amount that triggers a report

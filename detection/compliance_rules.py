@@ -34,6 +34,14 @@ def load_watchlist(path: Path | None = None) -> set[str]:
     return set(pd.read_csv(path)["account_id"].astype(str))
 
 
+def net_recent_inflow(past: pd.DataFrame, account: str, step: int, hours: int) -> float:
+    """Money received minus money sent by `account` in the last `hours`."""
+    window = past[past["step"] > step - hours]
+    received = float(window.loc[window["nameDest"] == account, "amount"].sum())
+    sent = float(window.loc[window["nameOrig"] == account, "amount"].sum())
+    return received - sent
+
+
 def sanctions_screening(txn: dict, past: pd.DataFrame, watchlist: set[str]) -> RuleHit | None:
     """AML-01: either party is on the sanctions watchlist."""
     matches = [p for p in (txn["nameOrig"], txn["nameDest"]) if p in watchlist]
@@ -64,14 +72,15 @@ def rapid_pass_through(txn: dict, past: pd.DataFrame, watchlist: set[str]) -> Ru
     step = int(txn["step"])
     inflow = past[(past["nameDest"] == txn["nameOrig"])
                   & (past["step"] > step - settings.PASS_THROUGH_WINDOW_HOURS)]
-    received = float(inflow["amount"].sum())
+    # Net of what was already sent on, so a mule's earlier cash-outs don't hide this one.
+    received = net_recent_inflow(past, txn["nameOrig"], step, settings.PASS_THROUGH_WINDOW_HOURS)
     amount, balance = float(txn["amount"]), float(txn["oldbalanceOrg"])
     # Out roughly matches what just came in, and that inflow is most of the balance.
     if (received >= settings.PASS_THROUGH_MIN_AMOUNT
             and settings.PASS_THROUGH_SHARE * received <= amount <= received / settings.PASS_THROUGH_SHARE
             and received >= settings.PASS_THROUGH_BALANCE_SHARE * balance):
         return RuleHit("AML-03", "Rapid pass-through", "high",
-                       f"Sends {float(txn['amount']):,.0f} out of {received:,.0f} received "
+                       f"Sends {float(txn['amount']):,.0f} out of {received:,.0f} net received "
                        f"from {inflow['nameOrig'].nunique()} sender(s) in the last "
                        f"{settings.PASS_THROUGH_WINDOW_HOURS}h.")
     return None

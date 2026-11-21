@@ -1,7 +1,9 @@
 """The fraud investigation agent: Claude investigates one flagged transaction.
 
 Flow for one transaction:
-1. Compliance agent runs the AML rules (no model).
+1. Compliance agent runs the AML rules, and the anomaly detector scores the
+   transaction (no model). Claude sees the rule hits but not the anomaly
+   score, so the score stays an independent second opinion.
 2. Claude picks investigation tools -> we run them -> Claude reads the
    results -> ... -> Claude calls submit_decision.
 3. Risk agent applies the code-enforced policy and has the last word.
@@ -21,6 +23,7 @@ from config.settings import MAX_AGENT_TURNS as MAX_TURNS
 from config.settings import MAX_TOOL_CALLS, MODEL
 from core import audit, tracing
 from core.tools import DECISION_TOOL, TOOL_DEFINITIONS, ToolBox
+from detection.anomaly_detection import score_transaction
 
 SYSTEM_PROMPT = """You are a fraud analyst at a payments company. A rule-based system \
 flagged one transaction. Most flags are false alarms, and blocking a genuine customer \
@@ -62,6 +65,7 @@ def investigate(transactions: pd.DataFrame, txn_id: str,
     toolbox = ToolBox(transactions, txn_id)
     txn = toolbox.txn
     hits = compliance_agent.check(txn, toolbox.past)
+    anomaly = score_transaction(txn, toolbox.past)
     messages: list[dict] = [{"role": "user", "content": _describe(txn, hits)}]
     tools_called: set[str] = set()
     tool_errors = 0
@@ -74,6 +78,8 @@ def investigate(transactions: pd.DataFrame, txn_id: str,
     with tracing.investigation(txn_id) as trace:
         trace.note("Compliance check", "; ".join(f"{h.rule_id} {h.name} ({h.severity}): "
                                                  f"{h.evidence}" for h in hits) or "No rule fired.")
+        trace.note("Anomaly score", f"{anomaly.score}/100: " + ("; ".join(
+            f"{s.explanation} ({s.points:+d})" for s in anomaly.signals) or "no signals"))
         for _ in range(MAX_TURNS):
             start = tracing.timer()
             try:
@@ -139,7 +145,8 @@ def investigate(transactions: pd.DataFrame, txn_id: str,
 
         if stop_note:
             security_events.append(stop_note)
-        policy = apply_policy(proposed, float(txn["amount"]), tools_called, tool_errors, hits)
+        policy = apply_policy(proposed, float(txn["amount"]), tools_called, tool_errors, hits,
+                              anomaly.score)
         trace.note("Safety policy check",
                    "No override." if not policy.overrides
                    else f"Changed {(proposed or {}).get('decision')} -> {policy.decision}: "
@@ -154,6 +161,8 @@ def investigate(transactions: pd.DataFrame, txn_id: str,
             "case_note": (proposed or {}).get("case_note", stop_note),
             "policy_overrides": policy.overrides,
             "compliance_hits": [h.to_dict() for h in hits],
+            "anomaly": anomaly.to_dict(),
+            "combined_risk": policy.combined_risk,
             "security_events": security_events,
             "evidence": evidence,
             "session_id": trace.session_id,
@@ -162,6 +171,7 @@ def investigate(transactions: pd.DataFrame, txn_id: str,
         result["audit_hash"] = audit.append("decision", {
             k: result[k] for k in ("txn_id", "decision", "agent_decision", "risk_score",
                                    "reasons", "policy_overrides", "compliance_hits",
+                                   "anomaly", "combined_risk",
                                    "security_events", "session_id")})
         trace.finish(result)
     return result

@@ -14,7 +14,7 @@ agents/        fraud_agent.py   Claude investigates with read-only tools
                compliance_agent.py   runs the AML rules
 detection/     compliance_rules.py   AML rules
                security_controls.py  ISO/IEC 27001 + CIS control register and checks
-               anomaly_detection.py  (next step)
+               anomaly_detection.py  explainable 0-100 score, no AI
 core/          data.py, tools.py, tracing.py (PRISM), masking.py, audit.py
 config/        settings.py      all thresholds in one place
 dashboard/     app.py           Streamlit demo
@@ -42,6 +42,17 @@ tests/         offline tests, no keys needed
    Every Claude call goes through `trace_llm`, and the tool calls, the risk
    check and the decision go in as one trajectory. A local copy goes to
    `traces.jsonl`.
+
+## Anomaly detection (second opinion)
+
+`detection/anomaly_detection.py` scores each transaction from 0 to 100 with
+plain, explainable signals: the account is emptied, money that just arrived is
+moved straight on, a new or brand-new recipient, a recipient collecting from
+many senders, an unusual amount or a burst of activity. An established payee
+lowers the score. Claude never sees this score, so it stays independent. If
+Claude approves but the score is `ANOMALY_ESCALATE_SCORE` (40) or higher, the
+risk agent escalates the case to a human. The combined risk shown is the more
+cautious of the two scores.
 
 ## AML compliance rules
 

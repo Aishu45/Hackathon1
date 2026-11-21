@@ -112,6 +112,7 @@ def generate_synthetic(n_customers: int = 400, hours: int = 72, seed: int = 7) -
             add(step, "TRANSFER", amount, victim, mule, fraud=1)
             balances[mule] = dest_balance[mule]
             add(step, "CASH_OUT", amount, mule, rng.choice(merchants), fraud=1)
+            dest_balance[mule] = balances[mule]  # keep the mule's balance in sync
 
     return pd.DataFrame(rows)
 

@@ -2,6 +2,7 @@
 import json
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
 from agents import fraud_agent as agent
@@ -115,5 +116,36 @@ def test_agent_loop_records_evidence_and_decision(df):
     assert result["decision"] in ("approve", "escalate")
     lines = tracing.LOCAL_LOG.read_text().strip().splitlines()
     kinds = [json.loads(line)["kind"] for line in lines]
-    assert kinds == ["note", "llm", "tool", "tool", "llm", "note", "final"]
+    assert kinds == ["note", "note", "llm", "tool", "tool", "llm", "note", "final"]
+    assert 0 <= result["anomaly"]["score"] <= 100
     assert result["audit_hash"]
+
+
+def test_anomaly_score_separates_planted_fraud_from_false_alarms(df):
+    from detection.anomaly_detection import score_transaction
+    alerts = build_alerts(df)
+    scores = {}
+    for txn_id, is_fraud in alerts[["txn_id", "isFraud"]].itertuples(index=False):
+        box = ToolBox(df, txn_id)
+        scores.setdefault(is_fraud, []).append(score_transaction(box.txn, box.past).score)
+    assert min(scores[1]) > max(scores[0])
+
+
+def test_anomaly_signals_explain_the_score():
+    from detection.anomaly_detection import WEIGHTS, score_transaction
+    cols = ["txn_id", "step", "type", "amount", "nameOrig", "oldbalanceOrg", "newbalanceOrig",
+            "nameDest", "oldbalanceDest", "newbalanceDest"]
+    past = pd.DataFrame(columns=cols)
+    txn = dict(zip(cols, ["T1", 5, "TRANSFER", 1000.0, "C100001", 1000.0, 0.0, "C900009", 0.0, 0.0]))
+    result = score_transaction(txn, past)
+    names = {s.name for s in result.signals}
+    assert {"drains_account", "new_recipient_for_sender", "brand_new_recipient"} <= names
+    assert result.score == min(100, sum(WEIGHTS[n] for n in names))
+
+
+def test_anomaly_disagreement_blocks_ai_approval():
+    tools = {"get_customer_history", "get_recipient_profile"}
+    approve = {"decision": "approve", "risk_score": 10}
+    blocked = apply_policy(approve, 1_000, tools, 0, [], anomaly_score=settings.ANOMALY_ESCALATE_SCORE)
+    assert blocked.decision == "escalate" and blocked.combined_risk == settings.ANOMALY_ESCALATE_SCORE
+    assert apply_policy(approve, 1_000, tools, 0, [], anomaly_score=5).decision == "approve"

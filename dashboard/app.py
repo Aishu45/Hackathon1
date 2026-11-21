@@ -49,8 +49,12 @@ if st.button("Investigate", type="primary"):
         result = investigate(df, txn_id)
 
     colour = {"approve": "green", "hold": "red", "escalate": "orange"}[result["decision"]]
-    st.markdown(f"## Decision: :{colour}[{result['decision'].upper()}]  ·  "
-                f"risk {result['risk_score'] if result['risk_score'] is not None else 'n/a'}/100")
+    st.markdown(f"## Decision: :{colour}[{result['decision'].upper()}]")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Claude's risk score", result["risk_score"] if result["risk_score"] is not None else "n/a")
+    m2.metric("Anomaly score (no AI)", result["anomaly"]["score"])
+    m3.metric("Combined risk", result["combined_risk"] if result["combined_risk"] is not None else "n/a",
+              help="The more cautious of the two scores.")
     if result["policy_overrides"]:
         st.warning(f"Safety policy changed the agent's '{result['agent_decision']}' to "
                    f"'{result['decision']}'.")
@@ -58,6 +62,12 @@ if st.button("Investigate", type="primary"):
     st.markdown("**Reasons**")
     for reason in result["reasons"]:
         st.markdown(f"- {reason}")
+
+    st.markdown("**Anomaly signals**")
+    for sig in result["anomaly"]["signals"]:
+        st.markdown(f"- `{sig['points']:+d}` {sig['explanation']}")
+    if not result["anomaly"]["signals"]:
+        st.markdown("No anomaly signals.")
 
     st.markdown("**Compliance rules (AML)**")
     if result["compliance_hits"]:
