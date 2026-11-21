@@ -1,4 +1,4 @@
-"""Safety policy enforced in code, after the model decides.
+"""Risk agent: the final, code-enforced decision after the fraud agent recommends.
 
 The model only recommends. These rules can make a decision more cautious
 (approve -> escalate) but never less cautious, so a confused or manipulated
@@ -6,11 +6,9 @@ model still cannot release a risky payment.
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 
-# Above this amount a human always decides. Ask your mentor for the real number.
-HUMAN_REVIEW_AMOUNT = float(os.environ.get("HUMAN_REVIEW_AMOUNT", "1000000"))
+from config.settings import HIGH_RISK_SCORE, HUMAN_REVIEW_AMOUNT
 
 # An approval needs at least this much evidence.
 REQUIRED_FOR_APPROVAL = {"get_customer_history", "get_recipient_profile"}
@@ -39,7 +37,7 @@ def apply_policy(proposed: dict | None, amount: float, tools_called: set[str],
             overrides.append(f"Approval without checking {', '.join(sorted(missing))}.")
         if tool_errors:
             overrides.append(f"{tool_errors} tool call(s) failed, so the evidence is incomplete.")
-        if int(proposed.get("risk_score", 0)) >= 70:
+        if int(proposed.get("risk_score", 0)) >= HIGH_RISK_SCORE:
             overrides.append("Approval contradicts the agent's own high risk score.")
 
     if amount >= HUMAN_REVIEW_AMOUNT and decision != "escalate":

@@ -19,14 +19,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
-from fraud_agent import tracing  # noqa: E402
-from fraud_agent.agent import investigate  # noqa: E402
-from fraud_agent.data import build_alerts  # noqa: E402
+from agents.fraud_agent import investigate  # noqa: E402
+from config.settings import TEST_CASES_CSV, TRANSACTIONS_CSV  # noqa: E402
+from core import tracing  # noqa: E402
+from core.data import build_alerts  # noqa: E402
 
 
 def main() -> None:
-    df = pd.read_csv(ROOT / "data" / "transactions.csv")
-    cases = pd.read_csv(ROOT / "data" / "test_cases.csv")
+    df = pd.read_csv(TRANSACTIONS_CSV)
+    cases = pd.read_csv(TEST_CASES_CSV)
     if len(sys.argv) > 1:
         cases = cases[cases["txn_id"].isin(sys.argv[1:])]
 

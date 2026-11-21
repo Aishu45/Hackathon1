@@ -1,13 +1,15 @@
-"""Offline tests: data, tools, safety policy and the agent loop with a fake model."""
+"""Offline tests for the fraud agent: data, tools, risk policy, and the loop with a fake model."""
 import json
 from types import SimpleNamespace
 
 import pytest
 
-from fraud_agent import agent, tracing
-from fraud_agent.data import build_alerts, generate_synthetic, load_transactions, split_answer_key
-from fraud_agent.guardrails import HUMAN_REVIEW_AMOUNT, apply_policy
-from fraud_agent.tools import ToolBox
+from agents import fraud_agent as agent
+from agents.risk_agent import apply_policy
+from config.settings import HUMAN_REVIEW_AMOUNT
+from core import tracing
+from core.data import build_alerts, generate_synthetic, load_transactions, split_answer_key
+from core.tools import ToolBox
 
 
 @pytest.fixture(scope="module")

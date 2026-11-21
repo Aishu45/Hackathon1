@@ -1,24 +1,28 @@
 """Streamlit demo: pick a flagged transaction, let the agent investigate it.
 
-Run:  streamlit run app.py
+Run:  streamlit run dashboard/app.py
 """
+import sys
 from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
 import streamlit as st
 
-from fraud_agent.agent import investigate
-from fraud_agent.data import build_alerts, split_answer_key
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+load_dotenv(ROOT / ".env")  # before the imports below read settings
 
-ROOT = Path(__file__).resolve().parent
-load_dotenv(ROOT / ".env")
+from agents.fraud_agent import investigate  # noqa: E402
+from config.settings import TRANSACTIONS_CSV  # noqa: E402
+from core.data import build_alerts, split_answer_key  # noqa: E402
+
 st.set_page_config(page_title="Fraud Investigation Agent", layout="wide")
 
 
 @st.cache_data
 def load() -> tuple[pd.DataFrame, pd.DataFrame]:
-    df = pd.read_csv(ROOT / "data" / "transactions.csv")
+    df = pd.read_csv(TRANSACTIONS_CSV)
     return df, build_alerts(df)
 
 

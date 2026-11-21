@@ -1,8 +1,8 @@
-"""Create data/transactions.csv (synthetic, PaySim format) and data/test_cases.csv.
+"""Create data/sample_transactions.csv (synthetic, PaySim format) and data/test_cases.csv.
 
 Usage:
-    python scripts/make_data.py                 # synthetic data
-    python scripts/make_data.py data/paysim.csv # real PaySim download instead
+    python scripts/generate_data.py                 # synthetic data
+    python scripts/generate_data.py data/paysim.csv # real PaySim download instead
 """
 import sys
 from pathlib import Path
@@ -11,9 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd  # noqa: E402
 
-from fraud_agent.data import build_alerts, generate_synthetic, load_transactions  # noqa: E402
-
-DATA = Path(__file__).resolve().parents[1] / "data"
+from config.settings import DATA_DIR as DATA  # noqa: E402
+from config.settings import TRANSACTIONS_CSV  # noqa: E402
+from core.data import build_alerts, generate_synthetic, load_transactions  # noqa: E402
 
 
 def main() -> None:
@@ -25,7 +25,7 @@ def main() -> None:
         raw.to_csv(DATA / "raw.csv", index=False)
         df = load_transactions(DATA / "raw.csv")
         (DATA / "raw.csv").unlink()
-    df.to_csv(DATA / "transactions.csv", index=False)
+    df.to_csv(TRANSACTIONS_CSV, index=False)
 
     alerts = build_alerts(df)
     fraud = alerts[alerts["isFraud"] == 1].sample(min(5, int(alerts["isFraud"].sum())), random_state=1)

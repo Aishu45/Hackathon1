@@ -15,11 +15,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from config.settings import ALERT_AMOUNT
+
 LABEL_COLUMNS = ["isFraud", "isFlaggedFraud"]
-
-# The simple rule a bank's alerting system would use before an analyst looks.
-ALERT_AMOUNT = 200_000
-
 
 def generate_synthetic(n_customers: int = 400, hours: int = 72, seed: int = 7) -> pd.DataFrame:
     """Make a small PaySim-shaped dataset with planted fraud and false alarms.

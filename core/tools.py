@@ -9,7 +9,7 @@ from typing import Any
 
 import pandas as pd
 
-from .data import LABEL_COLUMNS
+from core.data import LABEL_COLUMNS
 
 
 def _schema(properties: dict, required: list[str]) -> dict:

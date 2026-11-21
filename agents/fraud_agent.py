@@ -7,17 +7,15 @@ policy has the last word. Every step is traced to PRISM.
 from __future__ import annotations
 
 import json
-import os
 
 import anthropic
 import pandas as pd
 
-from . import tracing
-from .guardrails import apply_policy
-from .tools import DECISION_TOOL, TOOL_DEFINITIONS, ToolBox
-
-MODEL = os.environ.get("FRAUD_AGENT_MODEL", "claude-opus-5-5")
-MAX_TURNS = 8
+from agents.risk_agent import apply_policy
+from config.settings import MAX_AGENT_TURNS as MAX_TURNS
+from config.settings import MODEL
+from core import tracing
+from core.tools import DECISION_TOOL, TOOL_DEFINITIONS, ToolBox
 
 SYSTEM_PROMPT = """You are a fraud analyst at a payments company. A rule-based system \
 flagged one transaction. Most flags are false alarms, and blocking a genuine customer \
